@@ -79,6 +79,7 @@ def negative_log_probs(
     if last_seq_element_only:
         logprobs = logprobs[:, -1, :]
 
+    # logprobs: (samples/batch, vocab_size)
     # Subtract a baseline for each element -- which could be 0 or the NLL of the base_model_logprobs
     nll_all = (
         F.nll_loss(logprobs.view(-1, logprobs.size(-1)), labels.view(-1), reduction="none").view(logprobs.size()[:-1])
