@@ -58,7 +58,6 @@ except Exception as e:
 # <h2>Imports etc</h2>
 
 #%%
-from acdc.iterator.utils import get_all_iterate_things
 import wandb
 import IPython
 from IPython.display import Image, display
@@ -98,6 +97,7 @@ except Exception as e:
     print(f"Could not import `tracr` because {e}; the rest of the file should work but you cannot use the tracr tasks")
 from acdc.docstring.utils import get_all_docstring_things
 from acdc.logic_gates.utils import get_all_logic_gate_things
+from acdc.iterator.utils import get_all_iterate_things
 from acdc.acdc_utils import (
     make_nd_dict,
     reset_network,
@@ -169,6 +169,8 @@ parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument("--max-num-epochs",type=int, default=100_000)
 parser.add_argument('--single-step', action='store_true', help='Use single step, mostly for testing')
 parser.add_argument("--abs-value-threshold", action='store_true', help='Use the absolute value of the result to check threshold')
+
+parser.add_argument("--corrupted-batch-size", type=int, default=0, help="Batch size used when building the corrupted cache (Use if having memory problems when running a task, higher number lower memory use).",)
 
 if ipython is not None:
     # We are in a notebook
@@ -349,6 +351,7 @@ exp = TLACDCExperiment(
     verbose=True,
     indices_mode=INDICES_MODE,
     names_mode=NAMES_MODE,
+    corrupted_batch_size=args.corrupted_batch_size,         # Added module for memory saving
     corrupted_cache_cpu=CORRUPTED_CACHE_CPU,
     hook_verbose=False,
     online_cache_cpu=ONLINE_CACHE_CPU,

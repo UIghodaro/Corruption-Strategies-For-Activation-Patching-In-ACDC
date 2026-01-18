@@ -24,6 +24,10 @@ from acdc.TLACDCEdge import (
     EdgeType,
 )  # these introduce several important classes !!!
 from collections import OrderedDict
+
+# *Added in order to add batching as a method
+from collections import defaultdict
+
 from functools import partial
 import time
 from acdc.acdc_utils import next_key
@@ -83,6 +87,8 @@ class TLACDCExperiment:
         wandb_config: Optional[Namespace] = None,
         early_exit: bool = False,
         positions: Optional[List[int]] = None, # if None, do not split by position. TODO change the syntax here...
+
+        corrupted_batch_size: int = 0,
     ):
         """Initialize the ACDC experiment"""
 
@@ -141,7 +147,9 @@ class TLACDCExperiment:
             device=("cpu" if self.online_cache_cpu else "cuda", "cpu" if self.corrupted_cache_cpu else "cuda"),
         )
 
-        self.setup_corrupted_cache()
+        # Parameter added for corrupted batch_size
+        self.setup_corrupted_cache(corrupted_batch_size=corrupted_batch_size)
+        
         if self.corrupted_cache_cpu:
             self.global_cache.to("cpu", which_caches="corrupted")
 
@@ -188,7 +196,7 @@ class TLACDCExperiment:
             self.metrics_to_plot["num_edges"] = []
             self.metrics_to_plot["times"] = []
             self.metrics_to_plot["times_diff"] = []
-
+            
     def verify_model_setup(self):
         if not self.model.cfg.attn_only and "use_hook_mlp_in" in self.model.cfg.to_dict():
             assert self.model.cfg.use_hook_mlp_in, "Need to be able to see hook MLP inputs"
@@ -411,7 +419,7 @@ class TLACDCExperiment:
                     hook=partial(self.sender_hook, verbose=self.hook_verbose, cache=cache, device=device),
                 )
 
-    def setup_corrupted_cache(self):
+    def setup_corrupted_cache(self, corrupted_batch_size: int = 0):
         if self.verbose:
             print("Adding sender hooks...")
 
@@ -443,8 +451,60 @@ class TLACDCExperiment:
                 "hook_pos_embed",
                 scramble_positions,
             )
+            
         self.model.cache_all(self.global_cache.corrupted_cache)
         corrupt_stuff = self.model(self.ref_ds)
+        
+        # --- NEW: batched cache construction ---
+        # --- Circumvents the issue of corruption using a large chunk of memory at once, which overloads the memory of worse GPUs
+        # --- Sacrifice run-time for memory
+        ref = self.ref_ds
+        assert ref is not None, "ref_ds must be set for corrupted cache (unless zero_ablation fills it)."
+        assert torch.is_tensor(ref), f"Expected ref_ds to be a torch.Tensor, got {type(ref)}"
+
+        # Decide batch size: 0/None => old behaviour (single forward)
+        bs = int(corrupted_batch_size) if corrupted_batch_size else 0
+
+        if bs <= 0:
+            # Old behaviour
+            self.model.cache_all(self.global_cache.corrupted_cache)
+            corrupt_stuff = self.model(ref)
+        else:
+            # Build the corrupted cache by running each batch and concatenating per hook.
+            # Creation assisted by Artificial Intelligence
+            
+            print("ref_ds shape:", tuple(self.ref_ds.shape), "corrupted_batch_size:", corrupted_batch_size)
+            cache_lists = defaultdict(list)
+
+            
+            # Do not build a computation graph for gradients, they are unnecessary at this stage
+            with torch.no_grad():
+                
+                # Iterate over the corruption/reference inputs, doing a set amount at a time (chosen by user, default is all of them)
+                for i in range(0, ref.shape[0], bs):
+                    batch = ref[i : i + bs]
+
+                    # Forward pass, return cached activations
+                    # run_with_cache returns (output, cache)
+                    out, cache = self.model.run_with_cache(batch)
+
+                    # Iterate over cached activations
+                    # name = hook name string
+                    # act = tensor stored for that hook point (in this batch)
+                    for name, act in cache.cache_dict.items():
+                        # remove gradient tracking [.detach()] and then move the tensor to CPU RAM
+                        # Then add the output to the list of cached activations, which is concattenated later for the final output
+                        cache_lists[name].append(act.detach().to("cpu"))
+
+            
+            # Concatenate along the batch dimension and write into global_cache
+            # FIrst make sure the corrupted cache is clear, then write into it with the full cache
+            self.global_cache.corrupted_cache.clear()
+            for name, chunks in cache_lists.items():
+                self.global_cache.corrupted_cache[name] = torch.cat(chunks, dim=0)
+
+        # --- END NEW ---
+        
 
         if self.verbose:
             print("Done corrupting things")

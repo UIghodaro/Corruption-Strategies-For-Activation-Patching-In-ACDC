@@ -103,6 +103,7 @@ def get_all_docstring_things(
     test_patch_data = toks_int_values_other[num_examples:]
 
     with torch.no_grad():
+        print("validation_data shape:", tuple(validation_data.shape))
         base_validation_logprobs = F.log_softmax(tl_model(validation_data)[:, -1], dim=-1)
         base_test_logprobs = F.log_softmax(tl_model(test_data)[:, -1], dim=-1)
         assert len(base_validation_logprobs.shape) == 2, base_validation_logprobs.shape
