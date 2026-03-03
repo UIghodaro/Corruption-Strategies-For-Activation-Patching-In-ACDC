@@ -1,4 +1,5 @@
 # inspect_pkl.py
+# Use to inspect the pickle dumps of ACDC, check the stored edges, also used for comparison
 import argparse
 import pickle
 from pathlib import Path

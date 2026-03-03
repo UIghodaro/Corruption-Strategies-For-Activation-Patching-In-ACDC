@@ -36,7 +36,7 @@ dist/
 docs/build
 .coverage
 
-# don't really know what these are..
+# Most likely to do with specific task tests that I will not be conducting
 .hypothesis/
 arthur
 et_model_state_dict_the_(1).pt
@@ -62,3 +62,10 @@ pts/
 **/.DS_Store
 
 ob-jupyter
+
+# Personal files that are used for notes that may be used in the final report/context for the codebase
+CLAUDE.md
+MyModifications.txt
+designPlan.txt
+CS344__January_Progress_Report (1).pdf
+runs/

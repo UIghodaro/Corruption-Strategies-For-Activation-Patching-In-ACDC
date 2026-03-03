@@ -171,6 +171,11 @@ parser.add_argument('--single-step', action='store_true', help='Use single step,
 parser.add_argument("--abs-value-threshold", action='store_true', help='Use the absolute value of the result to check threshold')
 
 parser.add_argument("--corrupted-batch-size", type=int, default=0, help="Batch size used when building the corrupted cache (Use if having memory problems when running a task, higher number lower memory use).",)
+parser.add_argument("--dataset-version", type=str, default="random_random",
+    help="Corrupted prompt variant to use for the docstring task. "
+         "One of: random_doc, random_def, random_answer, random_def_doc, "
+         "random_answer_doc, random_random, vary_length_doc_desc, "
+         "vary_length_doc_desc_random_doc. Only used when --task=docstring.")
 
 if ipython is not None:
     # We are in a notebook
@@ -277,6 +282,7 @@ elif TASK == "docstring":
         seq_len=seq_len,
         device=DEVICE,
         metric_name=args.metric,
+        dataset_version=args.dataset_version,
         correct_incorrect_wandb=True,
     )
 elif TASK == "greaterthan":

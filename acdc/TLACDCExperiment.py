@@ -456,7 +456,7 @@ class TLACDCExperiment:
         corrupt_stuff = self.model(self.ref_ds)
         
         # --- NEW: batched cache construction ---
-        # --- Circumvents the issue of corruption using a large chunk of memory at once, which overloads the memory of worse GPUs
+        # --- Circumvents the issue of corruption using a large chunk of memory at once, which may overload the memory of limited GPUs
         # --- Sacrifice run-time for memory
         ref = self.ref_ds
         assert ref is not None, "ref_ds must be set for corrupted cache (unless zero_ablation fills it)."
@@ -471,12 +471,11 @@ class TLACDCExperiment:
             corrupt_stuff = self.model(ref)
         else:
             # Build the corrupted cache by running each batch and concatenating per hook.
-            # Creation assisted by Artificial Intelligence
+            # Creation of method assisted by Artificial Intelligence
             
             print("ref_ds shape:", tuple(self.ref_ds.shape), "corrupted_batch_size:", corrupted_batch_size)
             cache_lists = defaultdict(list)
 
-            
             # Do not build a computation graph for gradients, they are unnecessary at this stage
             with torch.no_grad():
                 
@@ -496,7 +495,6 @@ class TLACDCExperiment:
                         # Then add the output to the list of cached activations, which is concattenated later for the final output
                         cache_lists[name].append(act.detach().to("cpu"))
 
-            
             # Concatenate along the batch dimension and write into global_cache
             # FIrst make sure the corrupted cache is clear, then write into it with the full cache
             self.global_cache.corrupted_cache.clear()
